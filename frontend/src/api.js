@@ -18,9 +18,23 @@ export const crawlUrl = (url) =>
 export const saveArticle = (article) =>
   request('/articles', { method: 'POST', body: JSON.stringify(article) })
 
-export const listArticles = () => request('/articles')
+export const listArticles = (folderId) => {
+  const qs = folderId !== undefined && folderId !== null ? `?folder_id=${folderId}` : ''
+  return request(`/articles${qs}`)
+}
 
 export const getArticle = (id) => request(`/articles/${id}`)
 
+export const updateArticle = (id, data) =>
+  request(`/articles/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+
 export const deleteArticle = (id) =>
   request(`/articles/${id}`, { method: 'DELETE' })
+
+export const listFolders = () => request('/folders')
+
+export const createFolder = (name, parentId = null) =>
+  request('/folders', { method: 'POST', body: JSON.stringify({ name, parent_id: parentId }) })
+
+export const deleteFolder = (id) =>
+  request(`/folders/${id}`, { method: 'DELETE' })

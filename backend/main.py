@@ -1,16 +1,45 @@
-from fastapi import FastAPI, HTTPException, Depends
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import List
+from sqlalchemy import func, inspect, text
+from typing import List, Optional
 
 import models
 import schemas
 from crawler import crawl_url
 from database import engine, get_db
 
-models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="News Archive API", version="1.0.0")
+def run_migrations():
+    inspector = inspect(engine)
+    tables = inspector.get_table_names()
+    if "articles" in tables:
+        cols = [c["name"] for c in inspector.get_columns("articles")]
+        if "folder_id" not in cols:
+            with engine.connect() as conn:
+                conn.execute(text(
+                    "ALTER TABLE articles ADD COLUMN folder_id INTEGER REFERENCES folders(id)"
+                ))
+                conn.commit()
+    if "folders" in tables:
+        cols = [c["name"] for c in inspector.get_columns("folders")]
+        if "parent_id" not in cols:
+            with engine.connect() as conn:
+                conn.execute(text(
+                    "ALTER TABLE folders ADD COLUMN parent_id INTEGER REFERENCES folders(id)"
+                ))
+                conn.commit()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    models.Base.metadata.create_all(bind=engine)
+    run_migrations()
+    yield
+
+
+app = FastAPI(title="News Archive API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -30,6 +59,65 @@ def crawl_article(req: schemas.CrawlRequest):
     return crawl_url(req.url)
 
 
+# ── Folders ──────────────────────────────────────────────
+
+@app.get("/api/folders", response_model=List[schemas.FolderResponse])
+def list_folders(db: Session = Depends(get_db)):
+    folders = db.query(models.Folder).order_by(models.Folder.created_at).all()
+    result = []
+    for f in folders:
+        count = (
+            db.query(func.count(models.Article.id))
+            .filter(models.Article.folder_id == f.id)
+            .scalar()
+        )
+        result.append(schemas.FolderResponse(
+            id=f.id,
+            name=f.name,
+            parent_id=f.parent_id,
+            created_at=f.created_at,
+            article_count=count,
+        ))
+    return result
+
+
+@app.post("/api/folders", response_model=schemas.FolderResponse)
+def create_folder(folder: schemas.FolderCreate, db: Session = Depends(get_db)):
+    name = folder.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Folder name cannot be empty")
+    db_folder = models.Folder(name=name, parent_id=folder.parent_id)
+    db.add(db_folder)
+    db.commit()
+    db.refresh(db_folder)
+    return schemas.FolderResponse(
+        id=db_folder.id,
+        name=db_folder.name,
+        parent_id=db_folder.parent_id,
+        created_at=db_folder.created_at,
+        article_count=0,
+    )
+
+
+@app.delete("/api/folders/{folder_id}")
+def delete_folder(folder_id: int, db: Session = Depends(get_db)):
+    folder = db.query(models.Folder).filter(models.Folder.id == folder_id).first()
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found")
+    db.query(models.Article).filter(models.Article.folder_id == folder_id).update(
+        {"folder_id": None}
+    )
+    # Promote children to this folder's parent level
+    db.query(models.Folder).filter(models.Folder.parent_id == folder_id).update(
+        {"parent_id": folder.parent_id}
+    )
+    db.delete(folder)
+    db.commit()
+    return {"ok": True}
+
+
+# ── Articles ─────────────────────────────────────────────
+
 @app.post("/api/articles", response_model=schemas.ArticleResponse)
 def create_article(article: schemas.ArticleCreate, db: Session = Depends(get_db)):
     db_article = models.Article(**article.model_dump())
@@ -40,12 +128,16 @@ def create_article(article: schemas.ArticleCreate, db: Session = Depends(get_db)
 
 
 @app.get("/api/articles", response_model=List[schemas.ArticleResponse])
-def list_articles(db: Session = Depends(get_db)):
-    return (
-        db.query(models.Article)
-        .order_by(models.Article.created_at.desc())
-        .all()
-    )
+def list_articles(
+    folder_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+):
+    q = db.query(models.Article)
+    if folder_id == -1:
+        q = q.filter(models.Article.folder_id == None)  # noqa: E711
+    elif folder_id is not None:
+        q = q.filter(models.Article.folder_id == folder_id)
+    return q.order_by(models.Article.created_at.desc()).all()
 
 
 @app.get("/api/articles/{article_id}", response_model=schemas.ArticleResponse)
@@ -53,6 +145,22 @@ def get_article(article_id: int, db: Session = Depends(get_db)):
     article = db.query(models.Article).filter(models.Article.id == article_id).first()
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
+    return article
+
+
+@app.patch("/api/articles/{article_id}", response_model=schemas.ArticleResponse)
+def update_article(
+    article_id: int,
+    update: schemas.ArticleUpdate,
+    db: Session = Depends(get_db),
+):
+    article = db.query(models.Article).filter(models.Article.id == article_id).first()
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+    for field, value in update.model_dump(exclude_unset=True).items():
+        setattr(article, field, value)
+    db.commit()
+    db.refresh(article)
     return article
 
 
