@@ -9,3 +9,4 @@ sqlalchemy>=2.0.0
 python-multipart>=0.0.9
 pydantic>=2.0.0
 charset-normalizer>=3.0.0
+html2text>=2020.1.16

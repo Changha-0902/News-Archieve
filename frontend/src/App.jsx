@@ -1,8 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
+import ReactMarkdown from 'react-markdown'
 import {
   crawlUrl, saveArticle, listArticles, updateArticle, deleteArticle,
   listFolders, createFolder, deleteFolder,
 } from './api'
+
+const stripMarkdown = (text) =>
+  text?.replace(/[*_#>`~\[\]!]/g, '').replace(/\n+/g, ' ').trim() ?? ''
 
 function buildTree(folders, parentId = null) {
   return folders
@@ -215,6 +219,8 @@ function App() {
   const [articles, setArticles] = useState([])
   const [loadingArticles, setLoadingArticles] = useState(false)
   const [selectedArticle, setSelectedArticle] = useState(null)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editForm, setEditForm] = useState({ title: '', content: '', author: '', published_date: '' })
 
   const loadFolders = useCallback(async () => {
     try { setFolders(await listFolders()) } catch (e) { console.error(e) }
@@ -232,6 +238,8 @@ function App() {
   useEffect(() => {
     if (view === 'articles') loadArticles(selectedFolder)
   }, [view, selectedFolder, loadArticles])
+
+  useEffect(() => { setIsEditing(false) }, [selectedArticle?.id])
 
   const handleCrawl = async (e) => {
     e.preventDefault()
@@ -288,6 +296,35 @@ function App() {
       setArticles((prev) => prev.filter((a) => a.id !== id))
       if (selectedArticle?.id === id) setSelectedArticle(null)
       await loadFolders()
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const startEdit = () => {
+    setEditForm({
+      title: selectedArticle.title,
+      content: selectedArticle.content || '',
+      author: selectedArticle.author || '',
+      published_date: selectedArticle.published_date || '',
+    })
+    setIsEditing(true)
+  }
+
+  const cancelEdit = () => setIsEditing(false)
+
+  const handleEditSave = async () => {
+    if (!editForm.title.trim()) return
+    try {
+      const updated = await updateArticle(selectedArticle.id, {
+        title: editForm.title,
+        content: editForm.content || null,
+        author: editForm.author || null,
+        published_date: editForm.published_date || null,
+      })
+      setSelectedArticle(updated)
+      setArticles((prev) => prev.map((a) => (a.id === updated.id ? updated : a)))
+      setIsEditing(false)
     } catch (err) {
       console.error(err)
     }
@@ -570,7 +607,7 @@ function App() {
                       )}
                     </div>
                     {article.content && (
-                      <p className="preview">{article.content}</p>
+                      <p className="preview">{stripMarkdown(article.content)}</p>
                     )}
                   </div>
                 ))}
@@ -588,64 +625,129 @@ function App() {
                   >
                     ← 목록
                   </button>
-                  <div className="result-actions">
-                    <select
-                      className="form-input folder-move-select"
-                      value={selectedArticle.folder_id ?? ''}
-                      onChange={(e) =>
-                        handleMoveArticle(
-                          selectedArticle.id,
-                          e.target.value ? parseInt(e.target.value) : null,
-                        )
-                      }
-                      title="폴더 이동"
-                    >
-                      <option value="">폴더 없음</option>
-                      {flattenForSelect(folders).map(({ id, name: n, depth }) => (
-                        <option key={id} value={id}>
-                          {'\xa0\xa0'.repeat(depth)}{depth > 0 ? '└ ' : ''}{n}
-                        </option>
-                      ))}
-                    </select>
-                    {selectedArticle.url && (
-                      <a
-                        href={selectedArticle.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn btn-outline"
-                        style={{ fontSize: 12, padding: '5px 12px', textDecoration: 'none' }}
+                  {!isEditing && (
+                    <div className="result-actions">
+                      <select
+                        className="form-input folder-move-select"
+                        value={selectedArticle.folder_id ?? ''}
+                        onChange={(e) =>
+                          handleMoveArticle(
+                            selectedArticle.id,
+                            e.target.value ? parseInt(e.target.value) : null,
+                          )
+                        }
+                        title="폴더 이동"
                       >
-                        원문 보기
-                      </a>
-                    )}
-                    <button
-                      className="btn btn-danger"
-                      style={{ fontSize: 12, padding: '5px 12px' }}
-                      onClick={(e) => handleDelete(selectedArticle.id, e)}
-                    >
-                      삭제
-                    </button>
-                  </div>
+                        <option value="">폴더 없음</option>
+                        {flattenForSelect(folders).map(({ id, name: n, depth }) => (
+                          <option key={id} value={id}>
+                            {'\xa0\xa0'.repeat(depth)}{depth > 0 ? '└ ' : ''}{n}
+                          </option>
+                        ))}
+                      </select>
+                      {selectedArticle.url && (
+                        <a
+                          href={selectedArticle.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-outline"
+                          style={{ fontSize: 12, padding: '5px 12px', textDecoration: 'none' }}
+                        >
+                          원문 보기
+                        </a>
+                      )}
+                      <button
+                        className="btn btn-outline"
+                        style={{ fontSize: 12, padding: '5px 12px' }}
+                        onClick={startEdit}
+                      >
+                        수정
+                      </button>
+                      <button
+                        className="btn btn-danger"
+                        style={{ fontSize: 12, padding: '5px 12px' }}
+                        onClick={(e) => handleDelete(selectedArticle.id, e)}
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  )}
                 </div>
 
-                <h1 className="article-title">{selectedArticle.title}</h1>
-                <div className="article-meta">
-                  {selectedArticle.author && <span>{selectedArticle.author} · </span>}
-                  {selectedArticle.published_date && (
-                    <span>{selectedArticle.published_date} · </span>
-                  )}
-                  <span>
-                    저장: {new Date(selectedArticle.created_at).toLocaleDateString('ko-KR')}
-                  </span>
-                  {selectedArticle.folder_id && (
-                    <span> · 📁 {folderLabel(selectedArticle.folder_id)}</span>
-                  )}
-                </div>
-
-                {selectedArticle.content ? (
-                  <div className="article-content">{selectedArticle.content}</div>
+                {isEditing ? (
+                  <>
+                    <div className="form-group">
+                      <label className="form-label">제목</label>
+                      <input
+                        className="form-input"
+                        value={editForm.title}
+                        onChange={(e) => setEditForm((p) => ({ ...p, title: e.target.value }))}
+                        placeholder="제목을 입력하세요"
+                      />
+                    </div>
+                    <div className="row">
+                      <div className="form-group">
+                        <label className="form-label">작성자</label>
+                        <input
+                          className="form-input"
+                          value={editForm.author}
+                          onChange={(e) => setEditForm((p) => ({ ...p, author: e.target.value }))}
+                          placeholder="작성자"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">발행일</label>
+                        <input
+                          className="form-input"
+                          value={editForm.published_date}
+                          onChange={(e) => setEditForm((p) => ({ ...p, published_date: e.target.value }))}
+                          placeholder="YYYY-MM-DD"
+                        />
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">본문 (Markdown)</label>
+                      <textarea
+                        className="form-textarea"
+                        value={editForm.content}
+                        onChange={(e) => setEditForm((p) => ({ ...p, content: e.target.value }))}
+                        placeholder="본문을 입력하세요..."
+                      />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                      <button className="btn btn-outline" onClick={cancelEdit}>취소</button>
+                      <button
+                        className="btn btn-success"
+                        onClick={handleEditSave}
+                        disabled={!editForm.title.trim()}
+                      >
+                        저장
+                      </button>
+                    </div>
+                  </>
                 ) : (
-                  <div className="empty-state" style={{ padding: 24 }}>본문이 없습니다.</div>
+                  <>
+                    <h1 className="article-title">{selectedArticle.title}</h1>
+                    <div className="article-meta">
+                      {selectedArticle.author && <span>{selectedArticle.author} · </span>}
+                      {selectedArticle.published_date && (
+                        <span>{selectedArticle.published_date} · </span>
+                      )}
+                      <span>
+                        저장: {new Date(selectedArticle.created_at).toLocaleDateString('ko-KR')}
+                      </span>
+                      {selectedArticle.folder_id && (
+                        <span> · 📁 {folderLabel(selectedArticle.folder_id)}</span>
+                      )}
+                    </div>
+                    {selectedArticle.content ? (
+                      <div className="article-content">
+                        <ReactMarkdown>{selectedArticle.content}</ReactMarkdown>
+                      </div>
+                    ) : (
+                      <div className="empty-state" style={{ padding: 24 }}>본문이 없습니다.</div>
+                    )}
+                  </>
                 )}
               </div>
             )}

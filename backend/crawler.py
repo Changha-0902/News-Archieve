@@ -3,6 +3,7 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
+import html2text
 import requests
 import trafilatura
 from bs4 import BeautifulSoup
@@ -118,6 +119,12 @@ def _extract_date(soup: BeautifulSoup, og: dict) -> Optional[str]:
     return None
 
 
+_h2md = html2text.HTML2Text()
+_h2md.ignore_links = True
+_h2md.ignore_images = True
+_h2md.body_width = 0
+
+
 def _extract_content_bs4(soup: BeautifulSoup) -> Optional[str]:
     for tag in soup(["script", "style", "nav", "header", "footer",
                      "aside", "iframe", "noscript"]):
@@ -126,8 +133,8 @@ def _extract_content_bs4(soup: BeautifulSoup) -> Optional[str]:
     for sel in CONTENT_SELECTORS:
         el = soup.select_one(sel)
         if el:
-            text = el.get_text(separator="\n", strip=True)
-            text = re.sub(r"\n{3,}", "\n\n", text)
+            text = _h2md.handle(str(el))
+            text = re.sub(r"\n{3,}", "\n\n", text).strip()
             if len(text) > 200:
                 return text
     return None
@@ -142,7 +149,7 @@ def _try_trafilatura(html: str, url: str) -> CrawlResult:
             include_tables=False,
             include_images=False,
             favor_precision=True,
-            output_format="txt",
+            output_format="markdown",
         )
         if content and len(content.strip()) > 200:
             authors = None
