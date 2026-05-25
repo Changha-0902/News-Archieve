@@ -26,6 +26,7 @@ HEADERS = {
 # Common article body selectors for Korean news sites
 CONTENT_SELECTORS = [
     "[itemprop='articleBody']",
+    ".post_ct",           # Naver Blog
     ".article_txt",       # Inven, etc.
     ".articleArea",
     ".article-content",
@@ -208,6 +209,16 @@ def _try_beautifulsoup(html: str, url: str) -> CrawlResult:
     )
 
 
+def _follow_js_redirect(html: str) -> Optional[str]:
+    m = re.search(r"top\.location\.replace\(['\"]([^'\"]+)['\"]\)", html)
+    if m:
+        return m.group(1).replace("\\/", "/")
+    m = re.search(r"location\.href\s*=\s*['\"]([^'\"]+)['\"]", html)
+    if m:
+        return m.group(1).replace("\\/", "/")
+    return None
+
+
 def crawl_url(url: str) -> CrawlResult:
     try:
         resp = requests.get(url, headers=HEADERS, timeout=20, allow_redirects=True)
@@ -219,6 +230,19 @@ def crawl_url(url: str) -> CrawlResult:
             title=None, content=None, author=None, published_date=None,
             source_url=url, success=False, method="error",
         )
+
+    # JS redirect 감지 (네이버 블로그 등)
+    if len(html.strip()) < 1000:
+        redirect = _follow_js_redirect(html)
+        if redirect:
+            logger.info("JS redirect detected: %s -> %s", url, redirect)
+            try:
+                resp = requests.get(redirect, headers=HEADERS, timeout=20, allow_redirects=True)
+                resp.encoding = resp.apparent_encoding
+                html = resp.text
+                url = redirect
+            except requests.RequestException as e:
+                logger.warning("JS redirect fetch failed: %s", e)
 
     result = _try_trafilatura(html, url)
     if result.success:
