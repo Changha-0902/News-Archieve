@@ -1,0 +1,9 @@
+.idea/
+.git/
+data/
+__pycache__/
+*.pyc
+*.pyo
+node_modules/
+dist/
+.env
