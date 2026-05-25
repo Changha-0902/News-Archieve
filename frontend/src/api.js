@@ -39,6 +39,18 @@ export const createTag = (name) =>
 export const deleteTag = (id) =>
   request(`/tags/${id}`, { method: 'DELETE' })
 
+export const listHighlights = (articleId) =>
+  request(`/articles/${articleId}/highlights`)
+
+export const createHighlight = (articleId, data) =>
+  request(`/articles/${articleId}/highlights`, { method: 'POST', body: JSON.stringify(data) })
+
+export const updateHighlight = (id, data) =>
+  request(`/highlights/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+
+export const deleteHighlight = (id) =>
+  request(`/highlights/${id}`, { method: 'DELETE' })
+
 export const getArticle = (id) => request(`/articles/${id}`)
 
 export const updateArticle = (id, data) =>

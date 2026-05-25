@@ -17,6 +17,28 @@ class CrawlResult(BaseModel):
     method: str
 
 
+class HighlightCreate(BaseModel):
+    quoted_text: str
+    color: str = "yellow"
+    memo: Optional[str] = None
+
+
+class HighlightUpdate(BaseModel):
+    color: Optional[str] = None
+    memo: Optional[str] = None
+
+
+class HighlightResponse(BaseModel):
+    id: int
+    article_id: int
+    quoted_text: str
+    color: str
+    memo: Optional[str] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class TagCreate(BaseModel):
     name: str
 

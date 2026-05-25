@@ -578,3 +578,112 @@ body {
   font-size: 13px;
 }
 .tag-suggestion-item:hover { background: var(--bg); }
+
+/* Highlights */
+mark.hl-yellow { background: #fef08a; border-radius: 2px; padding: 0 1px; }
+mark.hl-green  { background: #bbf7d0; border-radius: 2px; padding: 0 1px; }
+mark.hl-pink   { background: #fecdd3; border-radius: 2px; padding: 0 1px; }
+mark.hl-blue   { background: #bae6fd; border-radius: 2px; padding: 0 1px; }
+
+.article-body-layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+.article-body-layout .article-content { flex: 1; min-width: 0; }
+
+.highlight-panel {
+  width: 220px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 80px;
+}
+.highlight-panel-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+.highlight-card {
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border: 1px solid transparent;
+}
+.hl-card-yellow { background: #fefce8; border-color: #fef08a; }
+.hl-card-green  { background: #f0fdf4; border-color: #bbf7d0; }
+.hl-card-pink   { background: #fff1f2; border-color: #fecdd3; }
+.hl-card-blue   { background: #f0f9ff; border-color: #bae6fd; }
+
+.highlight-quote {
+  font-size: 12px;
+  color: var(--text);
+  font-style: italic;
+  margin-bottom: 6px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+.highlight-memo-input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  resize: none;
+  outline: none;
+  background: rgba(255,255,255,0.7);
+  transition: border-color 0.15s;
+}
+.highlight-memo-input:focus { border-color: var(--primary); }
+.highlight-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+.hl-color-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+.hl-delete-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--muted);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.hl-delete-btn:hover { color: var(--danger); background: #fee2e2; }
+
+.hl-popup {
+  position: fixed;
+  transform: translateX(-50%) translateY(-100%);
+  background: #1e293b;
+  border-radius: 8px;
+  padding: 6px 10px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  z-index: 200;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+}
+.hl-color-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.1s, border-color 0.1s;
+}
+.hl-color-btn:hover { transform: scale(1.2); border-color: white; }
+.hl-cancel-btn {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.6);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  margin-left: 2px;
+}
+.hl-cancel-btn:hover { color: white; }

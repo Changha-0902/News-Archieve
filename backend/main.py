@@ -124,6 +124,52 @@ def delete_folder(folder_id: int, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
+# ── Highlights ───────────────────────────────────────────
+
+@app.get("/api/articles/{article_id}/highlights", response_model=List[schemas.HighlightResponse])
+def list_highlights(article_id: int, db: Session = Depends(get_db)):
+    article = db.query(models.Article).filter(models.Article.id == article_id).first()
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+    return db.query(models.Highlight).filter(
+        models.Highlight.article_id == article_id
+    ).order_by(models.Highlight.created_at).all()
+
+
+@app.post("/api/articles/{article_id}/highlights", response_model=schemas.HighlightResponse)
+def create_highlight(article_id: int, hl: schemas.HighlightCreate, db: Session = Depends(get_db)):
+    article = db.query(models.Article).filter(models.Article.id == article_id).first()
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+    db_hl = models.Highlight(article_id=article_id, **hl.model_dump())
+    db.add(db_hl)
+    db.commit()
+    db.refresh(db_hl)
+    return db_hl
+
+
+@app.patch("/api/highlights/{highlight_id}", response_model=schemas.HighlightResponse)
+def update_highlight(highlight_id: int, update: schemas.HighlightUpdate, db: Session = Depends(get_db)):
+    hl = db.query(models.Highlight).filter(models.Highlight.id == highlight_id).first()
+    if not hl:
+        raise HTTPException(status_code=404, detail="Highlight not found")
+    for field, value in update.model_dump(exclude_unset=True).items():
+        setattr(hl, field, value)
+    db.commit()
+    db.refresh(hl)
+    return hl
+
+
+@app.delete("/api/highlights/{highlight_id}")
+def delete_highlight(highlight_id: int, db: Session = Depends(get_db)):
+    hl = db.query(models.Highlight).filter(models.Highlight.id == highlight_id).first()
+    if not hl:
+        raise HTTPException(status_code=404, detail="Highlight not found")
+    db.delete(hl)
+    db.commit()
+    return {"ok": True}
+
+
 # ── Tags ─────────────────────────────────────────────────
 
 @app.get("/api/tags", response_model=List[schemas.TagResponse])

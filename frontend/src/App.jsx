@@ -1,10 +1,34 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
+import rehypeRaw from 'rehype-raw'
 import {
   crawlUrl, saveArticle, listArticles, updateArticle, deleteArticle,
   listFolders, createFolder, deleteFolder,
   listTags, createTag,
+  listHighlights, createHighlight, updateHighlight, deleteHighlight,
 } from './api'
+
+const HIGHLIGHT_COLORS = [
+  { key: 'yellow', label: '노랑', bg: '#fef08a' },
+  { key: 'green',  label: '초록', bg: '#bbf7d0' },
+  { key: 'pink',   label: '분홍', bg: '#fecdd3' },
+  { key: 'blue',   label: '파랑', bg: '#bae6fd' },
+]
+
+function applyHighlights(content, highlights) {
+  if (!content || !highlights?.length) return content
+  let result = content
+  const used = new Set()
+  for (const h of highlights) {
+    if (!h.quoted_text || used.has(h.quoted_text)) continue
+    const idx = result.indexOf(h.quoted_text)
+    if (idx === -1) continue
+    used.add(h.quoted_text)
+    const mark = `<mark class="hl-${h.color}" data-id="${h.id}">${h.quoted_text}</mark>`
+    result = result.slice(0, idx) + mark + result.slice(idx + h.quoted_text.length)
+  }
+  return result
+}
 
 const stripMarkdown = (text) =>
   text?.replace(/[*_#>`~\[\]!]/g, '').replace(/\n+/g, ' ').trim() ?? ''
@@ -316,6 +340,11 @@ function App() {
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState({ title: '', content: '', author: '', published_date: '', tag_ids: [] })
 
+  const [highlights, setHighlights] = useState([])
+  const [hlPopup, setHlPopup] = useState(null) // { x, y, text }
+  const [hlMemoEdit, setHlMemoEdit] = useState({}) // { [id]: string }
+  const articleContentRef = useRef(null)
+
   const loadFolders = useCallback(async () => {
     try { setFolders(await listFolders()) } catch (e) { console.error(e) }
   }, [])
@@ -345,7 +374,15 @@ function App() {
     }
   }, [view, selectedFolder, searchQuery, dateFrom, dateTo, selectedTag, loadArticles])
 
-  useEffect(() => { setIsEditing(false) }, [selectedArticle?.id])
+  useEffect(() => {
+    setIsEditing(false)
+    setHlPopup(null)
+    if (selectedArticle?.id) {
+      listHighlights(selectedArticle.id).then(setHighlights).catch(console.error)
+    } else {
+      setHighlights([])
+    }
+  }, [selectedArticle?.id])
 
   const handleCrawl = async (e) => {
     e.preventDefault()
@@ -438,6 +475,41 @@ function App() {
     } catch (err) {
       console.error(err)
     }
+  }
+
+  const handleContentMouseUp = (e) => {
+    if (isEditing) return
+    const selection = window.getSelection()
+    const text = selection?.toString().trim()
+    if (!text || text.length < 2) { setHlPopup(null); return }
+    const rect = selection.getRangeAt(0).getBoundingClientRect()
+    setHlPopup({ x: rect.left + rect.width / 2, y: rect.top - 8, text })
+  }
+
+  const handleAddHighlight = async (color) => {
+    if (!hlPopup?.text || !selectedArticle) return
+    try {
+      const hl = await createHighlight(selectedArticle.id, { quoted_text: hlPopup.text, color })
+      setHighlights((prev) => [...prev, hl])
+      setHlMemoEdit((prev) => ({ ...prev, [hl.id]: '' }))
+    } catch (err) { console.error(err) }
+    setHlPopup(null)
+    window.getSelection()?.removeAllRanges()
+  }
+
+  const handleDeleteHighlight = async (id) => {
+    try {
+      await deleteHighlight(id)
+      setHighlights((prev) => prev.filter((h) => h.id !== id))
+    } catch (err) { console.error(err) }
+  }
+
+  const handleSaveHlMemo = async (id) => {
+    const memo = hlMemoEdit[id] ?? highlights.find((h) => h.id === id)?.memo ?? ''
+    try {
+      const updated = await updateHighlight(id, { memo })
+      setHighlights((prev) => prev.map((h) => (h.id === id ? updated : h)))
+    } catch (err) { console.error(err) }
   }
 
   const handleToggleFavorite = async (article, e) => {
@@ -971,12 +1043,69 @@ function App() {
                         </span>
                       )}
                     </div>
-                    {selectedArticle.content ? (
-                      <div className="article-content">
-                        <ReactMarkdown>{selectedArticle.content}</ReactMarkdown>
+
+                    <div className="article-body-layout">
+                      {selectedArticle.content ? (
+                        <div
+                          className="article-content"
+                          ref={articleContentRef}
+                          onMouseUp={handleContentMouseUp}
+                        >
+                          <ReactMarkdown rehypePlugins={[rehypeRaw]}>
+                            {applyHighlights(selectedArticle.content, highlights)}
+                          </ReactMarkdown>
+                        </div>
+                      ) : (
+                        <div className="empty-state" style={{ padding: 24 }}>본문이 없습니다.</div>
+                      )}
+
+                      {highlights.length > 0 && (
+                        <div className="highlight-panel">
+                          <p className="highlight-panel-title">형광펜 메모</p>
+                          {highlights.map((h) => (
+                            <div key={h.id} className={`highlight-card hl-card-${h.color}`}>
+                              <div className="highlight-quote">"{h.quoted_text}"</div>
+                              <textarea
+                                className="highlight-memo-input"
+                                placeholder="메모 입력..."
+                                value={hlMemoEdit[h.id] ?? h.memo ?? ''}
+                                onChange={(e) =>
+                                  setHlMemoEdit((prev) => ({ ...prev, [h.id]: e.target.value }))
+                                }
+                                onBlur={() => handleSaveHlMemo(h.id)}
+                                rows={2}
+                              />
+                              <div className="highlight-card-actions">
+                                <div className="hl-color-dot" style={{ background: HIGHLIGHT_COLORS.find(c => c.key === h.color)?.bg }} />
+                                <button
+                                  className="hl-delete-btn"
+                                  onClick={() => handleDeleteHighlight(h.id)}
+                                >
+                                  삭제
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {hlPopup && (
+                      <div
+                        className="hl-popup"
+                        style={{ left: hlPopup.x, top: hlPopup.y + window.scrollY }}
+                      >
+                        {HIGHLIGHT_COLORS.map((c) => (
+                          <button
+                            key={c.key}
+                            className="hl-color-btn"
+                            style={{ background: c.bg }}
+                            title={c.label}
+                            onClick={() => handleAddHighlight(c.key)}
+                          />
+                        ))}
+                        <button className="hl-cancel-btn" onClick={() => { setHlPopup(null); window.getSelection()?.removeAllRanges() }}>✕</button>
                       </div>
-                    ) : (
-                      <div className="empty-state" style={{ padding: 24 }}>본문이 없습니다.</div>
                     )}
                   </>
                 )}

@@ -33,6 +33,18 @@ class Tag(Base):
     articles = relationship("Article", secondary=article_tags, back_populates="tags")
 
 
+class Highlight(Base):
+    __tablename__ = "highlights"
+
+    id = Column(Integer, primary_key=True, index=True)
+    article_id = Column(Integer, ForeignKey("articles.id"), nullable=False)
+    quoted_text = Column(Text, nullable=False)
+    color = Column(String, default="yellow", nullable=False)
+    memo = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    article = relationship("Article", back_populates="highlights")
+
+
 class Article(Base):
     __tablename__ = "articles"
 
@@ -48,3 +60,4 @@ class Article(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     folder = relationship("Folder", back_populates="articles")
     tags = relationship("Tag", secondary=article_tags, back_populates="articles")
+    highlights = relationship("Highlight", back_populates="article", cascade="all, delete-orphan")
