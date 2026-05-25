@@ -5,8 +5,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, inspect, text
 from typing import List, Optional
 
+import logging
 import models
 import schemas
+
+logger = logging.getLogger(__name__)
 from crawler import crawl_url
 from database import engine, get_db
 
@@ -131,6 +134,27 @@ def delete_folder(folder_id: int, db: Session = Depends(get_db)):
 
 # ── Translation ──────────────────────────────────────────
 
+def _translate_text(text: str, target: str) -> str:
+    from deep_translator import GoogleTranslator
+    # Split into ≤4500-char chunks on paragraph boundaries to stay within API limits
+    chunks: list[str] = []
+    current: list[str] = []
+    current_len = 0
+    for para in text.split("\n\n"):
+        if current_len + len(para) > 4500 and current:
+            chunks.append("\n\n".join(current))
+            current = [para]
+            current_len = len(para)
+        else:
+            current.append(para)
+            current_len += len(para) + 2
+    if current:
+        chunks.append("\n\n".join(current))
+
+    translator = GoogleTranslator(source="auto", target=target)
+    return "\n\n".join(translator.translate(chunk) for chunk in chunks if chunk.strip())
+
+
 @app.post("/api/articles/{article_id}/translate", response_model=schemas.ArticleResponse)
 def translate_article(
     article_id: int,
@@ -140,11 +164,18 @@ def translate_article(
     article = db.query(models.Article).filter(models.Article.id == article_id).first()
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
-    # Translation API is not yet configured. Wire up DeepL/Papago/Google here.
-    raise HTTPException(
-        status_code=501,
-        detail="번역 서비스 API key가 설정되지 않았습니다. 번역 서비스를 선택 후 설정해주세요.",
-    )
+    if not article.content:
+        raise HTTPException(status_code=400, detail="번역할 본문이 없습니다.")
+    try:
+        translated = _translate_text(article.content, req.target_language)
+    except Exception as e:
+        logger.error("Translation failed for article %s: %s", article_id, e)
+        raise HTTPException(status_code=502, detail=f"번역 중 오류가 발생했습니다: {e}")
+    article.translated_content = translated
+    article.translated_language = req.target_language
+    db.commit()
+    db.refresh(article)
+    return article
 
 
 # ── Highlights ───────────────────────────────────────────
