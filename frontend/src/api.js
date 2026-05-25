@@ -26,9 +26,18 @@ export const listArticles = (folderId, filters = {}) => {
   if (filters.dateFrom) params.set('date_from', filters.dateFrom)
   if (filters.dateTo) params.set('date_to', filters.dateTo)
   if (filters.isFavorite != null) params.set('is_favorite', filters.isFavorite)
+  if (filters.tagId != null) params.set('tag_id', filters.tagId)
   const qs = params.toString()
   return request(`/articles${qs ? `?${qs}` : ''}`)
 }
+
+export const listTags = () => request('/tags')
+
+export const createTag = (name) =>
+  request('/tags', { method: 'POST', body: JSON.stringify({ name }) })
+
+export const deleteTag = (id) =>
+  request(`/tags/${id}`, { method: 'DELETE' })
 
 export const getArticle = (id) => request(`/articles/${id}`)
 

@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import {
   crawlUrl, saveArticle, listArticles, updateArticle, deleteArticle,
   listFolders, createFolder, deleteFolder,
+  listTags, createTag,
 } from './api'
 
 const stripMarkdown = (text) =>
@@ -116,7 +117,7 @@ function FolderNode({ folder, depth, selectedFolder, onSelect, onDelete, onCreat
   )
 }
 
-function FolderSidebar({ folders, selectedFolder, onSelect, onDelete, onCreateFolder }) {
+function FolderSidebar({ folders, selectedFolder, onSelect, onDelete, onCreateFolder, tags, selectedTag, onSelectTag }) {
   const [showInput, setShowInput] = useState(false)
   const [name, setName] = useState('')
   const tree = buildTree(folders)
@@ -177,6 +178,23 @@ function FolderSidebar({ folders, selectedFolder, onSelect, onDelete, onCreateFo
 
       <div className="sidebar-divider" />
 
+      {tags.length > 0 && (
+        <>
+          <p className="sidebar-header" style={{ marginTop: 8 }}>태그</p>
+          {tags.map((t) => (
+            <div
+              key={t.id}
+              className={`sidebar-item ${selectedTag === t.id ? 'active' : ''}`}
+              onClick={() => onSelectTag(selectedTag === t.id ? null : t.id)}
+            >
+              <span className="sidebar-icon">#</span>
+              <span className="sidebar-name">{t.name}</span>
+            </div>
+          ))}
+          <div className="sidebar-divider" />
+        </>
+      )}
+
       {showInput ? (
         <div className="new-folder-form">
           <input
@@ -210,19 +228,83 @@ function FolderSidebar({ folders, selectedFolder, onSelect, onDelete, onCreateFo
   )
 }
 
+function TagInput({ allTags, selectedTagIds, onChange, onCreateTag }) {
+  const [input, setInput] = useState('')
+  const [focused, setFocused] = useState(false)
+
+  const suggestions = allTags.filter(
+    (t) => t.name.toLowerCase().includes(input.toLowerCase()) && !selectedTagIds.includes(t.id)
+  )
+
+  const addTag = async (tag) => {
+    onChange([...selectedTagIds, tag.id])
+    setInput('')
+  }
+
+  const handleKeyDown = async (e) => {
+    if (e.key === 'Enter' && input.trim()) {
+      e.preventDefault()
+      const existing = allTags.find((t) => t.name.toLowerCase() === input.trim().toLowerCase())
+      if (existing) {
+        if (!selectedTagIds.includes(existing.id)) addTag(existing)
+      } else {
+        const newTag = await onCreateTag(input.trim())
+        if (newTag) addTag(newTag)
+      }
+    }
+    if (e.key === 'Backspace' && !input && selectedTagIds.length > 0) {
+      onChange(selectedTagIds.slice(0, -1))
+    }
+  }
+
+  const selectedTags = allTags.filter((t) => selectedTagIds.includes(t.id))
+
+  return (
+    <div className="tag-input-wrap" onFocus={() => setFocused(true)} onBlur={() => setTimeout(() => setFocused(false), 150)}>
+      <div className="tag-input-box">
+        {selectedTags.map((t) => (
+          <span key={t.id} className="tag-chip tag-chip-selected">
+            {t.name}
+            <button onClick={() => onChange(selectedTagIds.filter((id) => id !== t.id))}>✕</button>
+          </span>
+        ))}
+        <input
+          className="tag-input-field"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={selectedTagIds.length === 0 ? '태그 입력 후 Enter' : ''}
+        />
+      </div>
+      {focused && input && suggestions.length > 0 && (
+        <div className="tag-suggestions">
+          {suggestions.slice(0, 5).map((t) => (
+            <div key={t.id} className="tag-suggestion-item" onMouseDown={() => addTag(t)}>
+              {t.name}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function App() {
   const [view, setView] = useState('articles')
   const [url, setUrl] = useState('')
   const [crawling, setCrawling] = useState(false)
   const [crawlResult, setCrawlResult] = useState(null)
   const [form, setForm] = useState({
-    title: '', content: '', author: '', published_date: '', folder_id: null,
+    title: '', content: '', author: '', published_date: '', folder_id: null, tag_ids: [],
   })
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState(null)
 
   const [folders, setFolders] = useState([])
   const [selectedFolder, setSelectedFolder] = useState(null)
+
+  const [tags, setTags] = useState([])
+  const [selectedTag, setSelectedTag] = useState(null)
 
   const [searchQuery, setSearchQuery] = useState('')
   const [dateFrom, setDateFrom] = useState('')
@@ -232,10 +314,14 @@ function App() {
   const [loadingArticles, setLoadingArticles] = useState(false)
   const [selectedArticle, setSelectedArticle] = useState(null)
   const [isEditing, setIsEditing] = useState(false)
-  const [editForm, setEditForm] = useState({ title: '', content: '', author: '', published_date: '' })
+  const [editForm, setEditForm] = useState({ title: '', content: '', author: '', published_date: '', tag_ids: [] })
 
   const loadFolders = useCallback(async () => {
     try { setFolders(await listFolders()) } catch (e) { console.error(e) }
+  }, [])
+
+  const loadTags = useCallback(async () => {
+    try { setTags(await listTags()) } catch (e) { console.error(e) }
   }, [])
 
   const loadArticles = useCallback(async (folderId, filters = {}) => {
@@ -246,17 +332,18 @@ function App() {
   }, [])
 
   useEffect(() => { loadFolders() }, [loadFolders])
+  useEffect(() => { loadTags() }, [loadTags])
 
   useEffect(() => {
     if (view === 'articles') {
-      const filters = { q: searchQuery, dateFrom, dateTo }
+      const filters = { q: searchQuery, dateFrom, dateTo, tagId: selectedTag }
       if (selectedFolder === 'favorites') {
         loadArticles(null, { ...filters, isFavorite: true })
       } else {
         loadArticles(selectedFolder, filters)
       }
     }
-  }, [view, selectedFolder, searchQuery, dateFrom, dateTo, loadArticles])
+  }, [view, selectedFolder, searchQuery, dateFrom, dateTo, selectedTag, loadArticles])
 
   useEffect(() => { setIsEditing(false) }, [selectedArticle?.id])
 
@@ -275,6 +362,7 @@ function App() {
         author: result.author || '',
         published_date: result.published_date || '',
         folder_id: null,
+        tag_ids: [],
       })
     } catch {
       setCrawlResult({ success: false, method: 'error', source_url: url.trim() })
@@ -296,6 +384,7 @@ function App() {
         published_date: form.published_date || null,
         url: crawlResult?.source_url || url || null,
         folder_id: form.folder_id || null,
+        tag_ids: form.tag_ids,
       })
       setSaveMsg({ type: 'success', text: '보관함에 저장되었습니다!' })
       setTimeout(() => setSaveMsg(null), 3000)
@@ -326,6 +415,7 @@ function App() {
       content: selectedArticle.content || '',
       author: selectedArticle.author || '',
       published_date: selectedArticle.published_date || '',
+      tag_ids: selectedArticle.tags?.map((t) => t.id) ?? [],
     })
     setIsEditing(true)
   }
@@ -340,6 +430,7 @@ function App() {
         content: editForm.content || null,
         author: editForm.author || null,
         published_date: editForm.published_date || null,
+        tag_ids: editForm.tag_ids,
       })
       setSelectedArticle(updated)
       setArticles((prev) => prev.map((a) => (a.id === updated.id ? updated : a)))
@@ -378,6 +469,17 @@ function App() {
       await loadFolders()
     } catch (err) {
       console.error(err)
+    }
+  }
+
+  const handleCreateTag = async (name) => {
+    try {
+      const tag = await createTag(name)
+      setTags((prev) => prev.find((t) => t.id === tag.id) ? prev : [...prev, tag])
+      return tag
+    } catch (err) {
+      console.error(err)
+      return null
     }
   }
 
@@ -547,6 +649,16 @@ function App() {
               </div>
 
               <div className="form-group">
+                <label className="form-label">태그</label>
+                <TagInput
+                  allTags={tags}
+                  selectedTagIds={form.tag_ids}
+                  onChange={(ids) => setForm((prev) => ({ ...prev, tag_ids: ids }))}
+                  onCreateTag={handleCreateTag}
+                />
+              </div>
+
+              <div className="form-group">
                 <label className="form-label">본문</label>
                 <textarea
                   className="form-textarea"
@@ -585,6 +697,9 @@ function App() {
             onSelect={(id) => { setSelectedFolder(id); setSelectedArticle(null) }}
             onDelete={handleDeleteFolder}
             onCreateFolder={handleCreateFolder}
+            tags={tags}
+            selectedTag={selectedTag}
+            onSelectTag={(id) => { setSelectedTag(id); setSelectedArticle(null) }}
           />
 
           <div className="layout-content">
@@ -692,6 +807,13 @@ function App() {
                         </span>
                       )}
                     </div>
+                    {article.tags?.length > 0 && (
+                      <div className="article-tags">
+                        {article.tags.slice(0, 3).map((t) => (
+                          <span key={t.id} className="tag-chip">{t.name}</span>
+                        ))}
+                      </div>
+                    )}
                     {article.content && (
                       <p className="preview">{stripMarkdown(article.content)}</p>
                     )}
@@ -799,6 +921,15 @@ function App() {
                       </div>
                     </div>
                     <div className="form-group">
+                      <label className="form-label">태그</label>
+                      <TagInput
+                        allTags={tags}
+                        selectedTagIds={editForm.tag_ids}
+                        onChange={(ids) => setEditForm((p) => ({ ...p, tag_ids: ids }))}
+                        onCreateTag={handleCreateTag}
+                      />
+                    </div>
+                    <div className="form-group">
                       <label className="form-label">본문 (Markdown)</label>
                       <textarea
                         className="form-textarea"
@@ -831,6 +962,13 @@ function App() {
                       </span>
                       {selectedArticle.folder_id && (
                         <span> · 📁 {folderLabel(selectedArticle.folder_id)}</span>
+                      )}
+                      {selectedArticle.tags?.length > 0 && (
+                        <span style={{ marginLeft: 8 }}>
+                          {selectedArticle.tags.map((t) => (
+                            <span key={t.id} className="tag-chip" style={{ marginRight: 4 }}>{t.name}</span>
+                          ))}
+                        </span>
                       )}
                     </div>
                     {selectedArticle.content ? (

@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 
@@ -15,6 +15,17 @@ class CrawlResult(BaseModel):
     source_url: str
     success: bool
     method: str
+
+
+class TagCreate(BaseModel):
+    name: str
+
+
+class TagResponse(BaseModel):
+    id: int
+    name: str
+
+    model_config = {"from_attributes": True}
 
 
 class FolderCreate(BaseModel):
@@ -40,6 +51,7 @@ class ArticleCreate(BaseModel):
     published_date: Optional[str] = None
     folder_id: Optional[int] = None
     is_favorite: bool = False
+    tag_ids: List[int] = []
 
 
 class ArticleUpdate(BaseModel):
@@ -49,6 +61,7 @@ class ArticleUpdate(BaseModel):
     published_date: Optional[str] = None
     folder_id: Optional[int] = None
     is_favorite: Optional[bool] = None
+    tag_ids: Optional[List[int]] = None
 
 
 class ArticleResponse(BaseModel):
@@ -60,6 +73,7 @@ class ArticleResponse(BaseModel):
     published_date: Optional[str] = None
     folder_id: Optional[int] = None
     is_favorite: bool = False
+    tags: List[TagResponse] = []
     created_at: datetime
 
     model_config = {"from_attributes": True}

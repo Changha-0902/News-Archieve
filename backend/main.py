@@ -124,11 +124,46 @@ def delete_folder(folder_id: int, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
+# ── Tags ─────────────────────────────────────────────────
+
+@app.get("/api/tags", response_model=List[schemas.TagResponse])
+def list_tags(db: Session = Depends(get_db)):
+    return db.query(models.Tag).order_by(models.Tag.name).all()
+
+
+@app.post("/api/tags", response_model=schemas.TagResponse)
+def create_tag(tag: schemas.TagCreate, db: Session = Depends(get_db)):
+    name = tag.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Tag name cannot be empty")
+    existing = db.query(models.Tag).filter(models.Tag.name == name).first()
+    if existing:
+        return existing
+    db_tag = models.Tag(name=name)
+    db.add(db_tag)
+    db.commit()
+    db.refresh(db_tag)
+    return db_tag
+
+
+@app.delete("/api/tags/{tag_id}")
+def delete_tag(tag_id: int, db: Session = Depends(get_db)):
+    tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
+    if not tag:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    db.delete(tag)
+    db.commit()
+    return {"ok": True}
+
+
 # ── Articles ─────────────────────────────────────────────
 
 @app.post("/api/articles", response_model=schemas.ArticleResponse)
 def create_article(article: schemas.ArticleCreate, db: Session = Depends(get_db)):
-    db_article = models.Article(**article.model_dump())
+    data = article.model_dump(exclude={"tag_ids"})
+    db_article = models.Article(**data)
+    if article.tag_ids:
+        db_article.tags = db.query(models.Tag).filter(models.Tag.id.in_(article.tag_ids)).all()
     db.add(db_article)
     db.commit()
     db.refresh(db_article)
@@ -142,6 +177,7 @@ def list_articles(
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
     is_favorite: Optional[bool] = Query(None),
+    tag_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
 ):
     query = db.query(models.Article)
@@ -151,6 +187,8 @@ def list_articles(
         query = query.filter(models.Article.folder_id == folder_id)
     if is_favorite is not None:
         query = query.filter(models.Article.is_favorite == is_favorite)
+    if tag_id is not None:
+        query = query.filter(models.Article.tags.any(models.Tag.id == tag_id))
     if q:
         pattern = f"%{q}%"
         query = query.filter(
@@ -180,8 +218,11 @@ def update_article(
     article = db.query(models.Article).filter(models.Article.id == article_id).first()
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
-    for field, value in update.model_dump(exclude_unset=True).items():
+    data = update.model_dump(exclude_unset=True, exclude={"tag_ids"})
+    for field, value in data.items():
         setattr(article, field, value)
+    if update.tag_ids is not None:
+        article.tags = db.query(models.Tag).filter(models.Tag.id.in_(update.tag_ids)).all()
     db.commit()
     db.refresh(article)
     return article
