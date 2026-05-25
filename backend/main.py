@@ -38,6 +38,11 @@ def run_migrations():
                     "ALTER TABLE articles ADD COLUMN is_favorite BOOLEAN NOT NULL DEFAULT 0"
                 ))
                 conn.commit()
+        if "translated_content" not in cols:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE articles ADD COLUMN translated_content TEXT"))
+                conn.execute(text("ALTER TABLE articles ADD COLUMN translated_language VARCHAR"))
+                conn.commit()
 
 
 @asynccontextmanager
@@ -122,6 +127,24 @@ def delete_folder(folder_id: int, db: Session = Depends(get_db)):
     db.delete(folder)
     db.commit()
     return {"ok": True}
+
+
+# ── Translation ──────────────────────────────────────────
+
+@app.post("/api/articles/{article_id}/translate", response_model=schemas.ArticleResponse)
+def translate_article(
+    article_id: int,
+    req: schemas.TranslateRequest,
+    db: Session = Depends(get_db),
+):
+    article = db.query(models.Article).filter(models.Article.id == article_id).first()
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+    # Translation API is not yet configured. Wire up DeepL/Papago/Google here.
+    raise HTTPException(
+        status_code=501,
+        detail="번역 서비스 API key가 설정되지 않았습니다. 번역 서비스를 선택 후 설정해주세요.",
+    )
 
 
 # ── Highlights ───────────────────────────────────────────

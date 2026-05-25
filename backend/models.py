@@ -58,6 +58,8 @@ class Article(Base):
     folder_id = Column(Integer, ForeignKey("folders.id"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    translated_content = Column(Text, nullable=True)
+    translated_language = Column(String, nullable=True)
     folder = relationship("Folder", back_populates="articles")
     tags = relationship("Tag", secondary=article_tags, back_populates="articles")
     highlights = relationship("Highlight", back_populates="article", cascade="all, delete-orphan")

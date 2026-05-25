@@ -39,6 +39,12 @@ export const createTag = (name) =>
 export const deleteTag = (id) =>
   request(`/tags/${id}`, { method: 'DELETE' })
 
+export const translateArticle = (id, targetLanguage = 'ko') =>
+  request(`/articles/${id}/translate`, {
+    method: 'POST',
+    body: JSON.stringify({ target_language: targetLanguage }),
+  })
+
 export const listHighlights = (articleId) =>
   request(`/articles/${articleId}/highlights`)
 

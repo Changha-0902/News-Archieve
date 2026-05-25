@@ -6,6 +6,7 @@ import {
   listFolders, createFolder, deleteFolder,
   listTags, createTag,
   listHighlights, createHighlight, updateHighlight, deleteHighlight,
+  translateArticle,
 } from './api'
 
 const HIGHLIGHT_COLORS = [
@@ -345,6 +346,9 @@ function App() {
   const [hlMemoEdit, setHlMemoEdit] = useState({}) // { [id]: string }
   const articleContentRef = useRef(null)
 
+  const [isTranslating, setIsTranslating] = useState(false)
+  const [isTranslated, setIsTranslated] = useState(false)
+
   const loadFolders = useCallback(async () => {
     try { setFolders(await listFolders()) } catch (e) { console.error(e) }
   }, [])
@@ -377,6 +381,7 @@ function App() {
   useEffect(() => {
     setIsEditing(false)
     setHlPopup(null)
+    setIsTranslated(false)
     if (selectedArticle?.id) {
       listHighlights(selectedArticle.id).then(setHighlights).catch(console.error)
     } else {
@@ -474,6 +479,24 @@ function App() {
       setIsEditing(false)
     } catch (err) {
       console.error(err)
+    }
+  }
+
+  const handleTranslate = async () => {
+    if (selectedArticle.translated_content) {
+      setIsTranslated((v) => !v)
+      return
+    }
+    setIsTranslating(true)
+    try {
+      const updated = await translateArticle(selectedArticle.id, 'ko')
+      setSelectedArticle(updated)
+      setArticles((prev) => prev.map((a) => (a.id === updated.id ? updated : a)))
+      setIsTranslated(true)
+    } catch (err) {
+      alert(err.message || '번역에 실패했습니다.')
+    } finally {
+      setIsTranslating(false)
     }
   }
 
@@ -914,6 +937,15 @@ function App() {
                       >
                         {selectedArticle.is_favorite ? '★' : '☆'}
                       </button>
+                      <button
+                        className="btn btn-outline"
+                        style={{ fontSize: 12, padding: '5px 12px' }}
+                        onClick={handleTranslate}
+                        disabled={isTranslating}
+                        title="번역 (API key 설정 필요)"
+                      >
+                        {isTranslating ? <><span className="spinner" style={{ borderColor: 'rgba(37,99,235,0.3)', borderTopColor: 'var(--primary)' }} /> 번역 중...</> : isTranslated ? '원문 보기' : '번역'}
+                      </button>
                       <select
                         className="form-input folder-move-select"
                         value={selectedArticle.folder_id ?? ''}
@@ -1045,14 +1077,16 @@ function App() {
                     </div>
 
                     <div className="article-body-layout">
-                      {selectedArticle.content ? (
+                      {(isTranslated ? selectedArticle.translated_content : selectedArticle.content) ? (
                         <div
                           className="article-content"
                           ref={articleContentRef}
                           onMouseUp={handleContentMouseUp}
                         >
                           <ReactMarkdown rehypePlugins={[rehypeRaw]}>
-                            {applyHighlights(selectedArticle.content, highlights)}
+                            {isTranslated
+                              ? (selectedArticle.translated_content ?? '')
+                              : applyHighlights(selectedArticle.content, highlights)}
                           </ReactMarkdown>
                         </div>
                       ) : (

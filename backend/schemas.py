@@ -86,6 +86,10 @@ class ArticleUpdate(BaseModel):
     tag_ids: Optional[List[int]] = None
 
 
+class TranslateRequest(BaseModel):
+    target_language: str = "ko"
+
+
 class ArticleResponse(BaseModel):
     id: int
     title: str
@@ -96,6 +100,8 @@ class ArticleResponse(BaseModel):
     folder_id: Optional[int] = None
     is_favorite: bool = False
     tags: List[TagResponse] = []
+    translated_content: Optional[str] = None
+    translated_language: Optional[str] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
