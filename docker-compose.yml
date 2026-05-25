@@ -8,6 +8,7 @@ services:
       - ./data:/app/data
     environment:
       - DATABASE_URL=sqlite:////app/data/archive.db
+      - DEEPL_API_KEY=${DEEPL_API_KEY:-}
     restart: unless-stopped
 
   frontend:

@@ -134,9 +134,14 @@ def delete_folder(folder_id: int, db: Session = Depends(get_db)):
 
 # ── Translation ──────────────────────────────────────────
 
-def _translate_text(text: str, target: str) -> str:
+_DEEPL_LANG_MAP = {
+    "ko": "KO", "en": "EN-US", "ja": "JA", "zh": "ZH",
+    "de": "DE", "fr": "FR", "es": "ES", "ru": "RU",
+}
+
+
+def _google_translate(text: str, target: str) -> str:
     from deep_translator import GoogleTranslator
-    # Split into ≤4500-char chunks on paragraph boundaries to stay within API limits
     chunks: list[str] = []
     current: list[str] = []
     current_len = 0
@@ -150,9 +155,29 @@ def _translate_text(text: str, target: str) -> str:
             current_len += len(para) + 2
     if current:
         chunks.append("\n\n".join(current))
-
     translator = GoogleTranslator(source="auto", target=target)
-    return "\n\n".join(translator.translate(chunk) for chunk in chunks if chunk.strip())
+    return "\n\n".join(translator.translate(c) for c in chunks if c.strip())
+
+
+def _translate_text(text: str, target: str) -> str:
+    import os
+    deepl_key = os.environ.get("DEEPL_API_KEY", "").strip()
+
+    if deepl_key:
+        try:
+            import deepl as deepl_lib
+            translator = deepl_lib.Translator(deepl_key)
+            deepl_target = _DEEPL_LANG_MAP.get(target.lower(), target.upper())
+            result = translator.translate_text(text, target_lang=deepl_target)
+            logger.info("Translated via DeepL (%s chars)", len(text))
+            return result.text
+        except deepl_lib.exceptions.QuotaExceededException:
+            logger.warning("DeepL quota exceeded — falling back to Google Translate")
+        except Exception as e:
+            logger.warning("DeepL failed (%s) — falling back to Google Translate", e)
+
+    logger.info("Translating via Google (%s chars)", len(text))
+    return _google_translate(text, target)
 
 
 @app.post("/api/articles/{article_id}/translate", response_model=schemas.ArticleResponse)
