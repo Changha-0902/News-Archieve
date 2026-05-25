@@ -31,7 +31,8 @@ export const listArticles = (folderId, filters = {}) => {
   return request(`/articles${qs ? `?${qs}` : ''}`)
 }
 
-export const listTags = () => request('/tags')
+export const listTags = (usedOnly = false) =>
+  request(`/tags${usedOnly ? '?used_only=true' : ''}`)
 
 export const createTag = (name) =>
   request('/tags', { method: 'POST', body: JSON.stringify({ name }) })

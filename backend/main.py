@@ -252,8 +252,11 @@ def delete_highlight(highlight_id: int, db: Session = Depends(get_db)):
 # ── Tags ─────────────────────────────────────────────────
 
 @app.get("/api/tags", response_model=List[schemas.TagResponse])
-def list_tags(db: Session = Depends(get_db)):
-    return db.query(models.Tag).order_by(models.Tag.name).all()
+def list_tags(used_only: bool = Query(False), db: Session = Depends(get_db)):
+    query = db.query(models.Tag)
+    if used_only:
+        query = query.filter(models.Tag.articles.any())
+    return query.order_by(models.Tag.name).all()
 
 
 @app.post("/api/tags", response_model=schemas.TagResponse)
