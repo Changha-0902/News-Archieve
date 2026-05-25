@@ -153,6 +153,14 @@ function FolderSidebar({ folders, selectedFolder, onSelect, onDelete, onCreateFo
         <span>미분류</span>
       </div>
 
+      <div
+        className={`sidebar-item ${selectedFolder === 'favorites' ? 'active' : ''}`}
+        onClick={() => onSelect('favorites')}
+      >
+        <span className="sidebar-icon">★</span>
+        <span>즐겨찾기</span>
+      </div>
+
       {folders.length > 0 && <div className="sidebar-divider" />}
 
       {tree.map((f) => (
@@ -240,7 +248,14 @@ function App() {
   useEffect(() => { loadFolders() }, [loadFolders])
 
   useEffect(() => {
-    if (view === 'articles') loadArticles(selectedFolder, { q: searchQuery, dateFrom, dateTo })
+    if (view === 'articles') {
+      const filters = { q: searchQuery, dateFrom, dateTo }
+      if (selectedFolder === 'favorites') {
+        loadArticles(null, { ...filters, isFavorite: true })
+      } else {
+        loadArticles(selectedFolder, filters)
+      }
+    }
   }, [view, selectedFolder, searchQuery, dateFrom, dateTo, loadArticles])
 
   useEffect(() => { setIsEditing(false) }, [selectedArticle?.id])
@@ -334,6 +349,21 @@ function App() {
     }
   }
 
+  const handleToggleFavorite = async (article, e) => {
+    e?.stopPropagation()
+    try {
+      const updated = await updateArticle(article.id, { is_favorite: !article.is_favorite })
+      setArticles((prev) => prev.map((a) => (a.id === updated.id ? updated : a)))
+      if (selectedArticle?.id === updated.id) setSelectedArticle(updated)
+      if (selectedFolder === 'favorites' && !updated.is_favorite) {
+        setArticles((prev) => prev.filter((a) => a.id !== updated.id))
+        if (selectedArticle?.id === updated.id) setSelectedArticle(null)
+      }
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
   const handleMoveArticle = async (articleId, folderId) => {
     try {
       const updated = await updateArticle(articleId, { folder_id: folderId })
@@ -396,6 +426,7 @@ function App() {
   const selectedFolderLabel =
     selectedFolder === null ? '전체' :
     selectedFolder === -1 ? '미분류' :
+    selectedFolder === 'favorites' ? '즐겨찾기' :
     (folders.find((f) => f.id === selectedFolder)?.name ?? '')
 
   return (
@@ -628,11 +659,20 @@ function App() {
                   >
                     <div className="article-item-top">
                       <h3>{article.title}</h3>
-                      {article.folder_id && (
-                        <span className="folder-badge">
-                          {folderLabel(article.folder_id)}
-                        </span>
-                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                        {article.folder_id && (
+                          <span className="folder-badge">
+                            {folderLabel(article.folder_id)}
+                          </span>
+                        )}
+                        <button
+                          className={`fav-btn ${article.is_favorite ? 'active' : ''}`}
+                          onClick={(e) => handleToggleFavorite(article, e)}
+                          title={article.is_favorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
+                        >
+                          {article.is_favorite ? '★' : '☆'}
+                        </button>
+                      </div>
                     </div>
                     <div className="meta">
                       {article.author && <span>{article.author} · </span>}
@@ -673,6 +713,13 @@ function App() {
                   </button>
                   {!isEditing && (
                     <div className="result-actions">
+                      <button
+                        className={`fav-btn fav-btn-lg ${selectedArticle.is_favorite ? 'active' : ''}`}
+                        onClick={(e) => handleToggleFavorite(selectedArticle, e)}
+                        title={selectedArticle.is_favorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
+                      >
+                        {selectedArticle.is_favorite ? '★' : '☆'}
+                      </button>
                       <select
                         className="form-input folder-move-select"
                         value={selectedArticle.folder_id ?? ''}

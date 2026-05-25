@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean, Table
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
@@ -25,6 +25,7 @@ class Article(Base):
     content = Column(Text, nullable=True)
     author = Column(String, nullable=True)
     published_date = Column(String, nullable=True)
+    is_favorite = Column(Boolean, default=False, nullable=False, server_default="0")
     folder_id = Column(Integer, ForeignKey("folders.id"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

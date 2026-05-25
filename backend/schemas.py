@@ -39,6 +39,7 @@ class ArticleCreate(BaseModel):
     author: Optional[str] = None
     published_date: Optional[str] = None
     folder_id: Optional[int] = None
+    is_favorite: bool = False
 
 
 class ArticleUpdate(BaseModel):
@@ -47,6 +48,7 @@ class ArticleUpdate(BaseModel):
     author: Optional[str] = None
     published_date: Optional[str] = None
     folder_id: Optional[int] = None
+    is_favorite: Optional[bool] = None
 
 
 class ArticleResponse(BaseModel):
@@ -57,6 +59,7 @@ class ArticleResponse(BaseModel):
     author: Optional[str] = None
     published_date: Optional[str] = None
     folder_id: Optional[int] = None
+    is_favorite: bool = False
     created_at: datetime
 
     model_config = {"from_attributes": True}

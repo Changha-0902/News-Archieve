@@ -25,6 +25,7 @@ export const listArticles = (folderId, filters = {}) => {
   if (filters.q) params.set('q', filters.q)
   if (filters.dateFrom) params.set('date_from', filters.dateFrom)
   if (filters.dateTo) params.set('date_to', filters.dateTo)
+  if (filters.isFavorite != null) params.set('is_favorite', filters.isFavorite)
   const qs = params.toString()
   return request(`/articles${qs ? `?${qs}` : ''}`)
 }

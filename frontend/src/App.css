@@ -493,3 +493,20 @@ body {
 }
 
 .date-sep { color: var(--muted); font-size: 13px; }
+
+/* Favorite button */
+.fav-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  color: var(--muted);
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+.fav-btn:hover { color: #f59e0b; }
+.fav-btn.active { color: #f59e0b; }
+.fav-btn-lg { font-size: 18px; padding: 3px 6px; }

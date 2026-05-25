@@ -30,6 +30,14 @@ def run_migrations():
                     "ALTER TABLE folders ADD COLUMN parent_id INTEGER REFERENCES folders(id)"
                 ))
                 conn.commit()
+    if "articles" in tables:
+        cols = [c["name"] for c in inspector.get_columns("articles")]
+        if "is_favorite" not in cols:
+            with engine.connect() as conn:
+                conn.execute(text(
+                    "ALTER TABLE articles ADD COLUMN is_favorite BOOLEAN NOT NULL DEFAULT 0"
+                ))
+                conn.commit()
 
 
 @asynccontextmanager
@@ -133,6 +141,7 @@ def list_articles(
     q: Optional[str] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
+    is_favorite: Optional[bool] = Query(None),
     db: Session = Depends(get_db),
 ):
     query = db.query(models.Article)
@@ -140,6 +149,8 @@ def list_articles(
         query = query.filter(models.Article.folder_id == None)  # noqa: E711
     elif folder_id is not None:
         query = query.filter(models.Article.folder_id == folder_id)
+    if is_favorite is not None:
+        query = query.filter(models.Article.is_favorite == is_favorite)
     if q:
         pattern = f"%{q}%"
         query = query.filter(
