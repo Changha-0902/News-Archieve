@@ -216,6 +216,10 @@ function App() {
   const [folders, setFolders] = useState([])
   const [selectedFolder, setSelectedFolder] = useState(null)
 
+  const [searchQuery, setSearchQuery] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+
   const [articles, setArticles] = useState([])
   const [loadingArticles, setLoadingArticles] = useState(false)
   const [selectedArticle, setSelectedArticle] = useState(null)
@@ -226,9 +230,9 @@ function App() {
     try { setFolders(await listFolders()) } catch (e) { console.error(e) }
   }, [])
 
-  const loadArticles = useCallback(async (folderId) => {
+  const loadArticles = useCallback(async (folderId, filters = {}) => {
     setLoadingArticles(true)
-    try { setArticles(await listArticles(folderId)) }
+    try { setArticles(await listArticles(folderId, filters)) }
     catch (e) { console.error(e) }
     finally { setLoadingArticles(false) }
   }, [])
@@ -236,8 +240,8 @@ function App() {
   useEffect(() => { loadFolders() }, [loadFolders])
 
   useEffect(() => {
-    if (view === 'articles') loadArticles(selectedFolder)
-  }, [view, selectedFolder, loadArticles])
+    if (view === 'articles') loadArticles(selectedFolder, { q: searchQuery, dateFrom, dateTo })
+  }, [view, selectedFolder, searchQuery, dateFrom, dateTo, loadArticles])
 
   useEffect(() => { setIsEditing(false) }, [selectedArticle?.id])
 
@@ -564,6 +568,48 @@ function App() {
                     </span>
                   )}
                 </p>
+
+                <div className="search-filter-bar">
+                  <div className="search-input-wrap">
+                    <span className="search-icon">&#x1F50D;</span>
+                    <input
+                      type="text"
+                      className="search-input"
+                      placeholder="제목 / 본문 검색"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                    {searchQuery && (
+                      <button className="search-clear" onClick={() => setSearchQuery('')}>✕</button>
+                    )}
+                  </div>
+                  <div className="date-filter">
+                    <input
+                      type="date"
+                      className="form-input date-input"
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                      title="발행일 시작"
+                    />
+                    <span className="date-sep">~</span>
+                    <input
+                      type="date"
+                      className="form-input date-input"
+                      value={dateTo}
+                      onChange={(e) => setDateTo(e.target.value)}
+                      title="발행일 종료"
+                    />
+                  </div>
+                  {(searchQuery || dateFrom || dateTo) && (
+                    <button
+                      className="btn btn-outline"
+                      style={{ fontSize: 12, padding: '6px 12px' }}
+                      onClick={() => { setSearchQuery(''); setDateFrom(''); setDateTo('') }}
+                    >
+                      초기화
+                    </button>
+                  )}
+                </div>
 
                 {loadingArticles && <div className="empty-state">불러오는 중...</div>}
 

@@ -130,14 +130,26 @@ def create_article(article: schemas.ArticleCreate, db: Session = Depends(get_db)
 @app.get("/api/articles", response_model=List[schemas.ArticleResponse])
 def list_articles(
     folder_id: Optional[int] = Query(None),
+    q: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
-    q = db.query(models.Article)
+    query = db.query(models.Article)
     if folder_id == -1:
-        q = q.filter(models.Article.folder_id == None)  # noqa: E711
+        query = query.filter(models.Article.folder_id == None)  # noqa: E711
     elif folder_id is not None:
-        q = q.filter(models.Article.folder_id == folder_id)
-    return q.order_by(models.Article.created_at.desc()).all()
+        query = query.filter(models.Article.folder_id == folder_id)
+    if q:
+        pattern = f"%{q}%"
+        query = query.filter(
+            models.Article.title.ilike(pattern) | models.Article.content.ilike(pattern)
+        )
+    if date_from:
+        query = query.filter(models.Article.published_date >= date_from)
+    if date_to:
+        query = query.filter(models.Article.published_date <= date_to)
+    return query.order_by(models.Article.created_at.desc()).all()
 
 
 @app.get("/api/articles/{article_id}", response_model=schemas.ArticleResponse)

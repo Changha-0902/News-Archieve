@@ -19,9 +19,14 @@ export const crawlUrl = (url) =>
 export const saveArticle = (article) =>
   request('/articles', { method: 'POST', body: JSON.stringify(article) })
 
-export const listArticles = (folderId) => {
-  const qs = folderId !== undefined && folderId !== null ? `?folder_id=${folderId}` : ''
-  return request(`/articles${qs}`)
+export const listArticles = (folderId, filters = {}) => {
+  const params = new URLSearchParams()
+  if (folderId !== undefined && folderId !== null) params.set('folder_id', folderId)
+  if (filters.q) params.set('q', filters.q)
+  if (filters.dateFrom) params.set('date_from', filters.dateFrom)
+  if (filters.dateTo) params.set('date_to', filters.dateTo)
+  const qs = params.toString()
+  return request(`/articles${qs ? `?${qs}` : ''}`)
 }
 
 export const getArticle = (id) => request(`/articles/${id}`)

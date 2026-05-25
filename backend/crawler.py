@@ -18,7 +18,8 @@ HEADERS = {
     ),
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
     "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
-    "Accept-Encoding": "gzip, deflate, br",
+    # Accept-Encoding은 requests가 자동 설정 (gzip/deflate만 광고).
+    # 수동으로 br을 포함하면 서버가 Brotli로 응답하지만 requests는 Brotli 미지원.
     "Connection": "keep-alive",
 }
 
